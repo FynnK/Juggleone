@@ -336,9 +336,11 @@ void updaterTask(void *pvParameters)
     }
   });
 
-  server.on("/getAccs", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/getAccsCsv", HTTP_GET, [](AsyncWebServerRequest *request) {
     String buffer;
     for (int i = 0; i < MPU_ARRAY_SIZE; i++) {
+      buffer.concat(mpuData[i].timestamp);
+      buffer.concat(',');
       buffer.concat(mpuData[i].accel.x());
       buffer.concat(',');
       buffer.concat(mpuData[i].accel.y());
@@ -355,6 +357,7 @@ void updaterTask(void *pvParameters)
 
     request->send(200, "text/plain", buffer);
   });
+
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     mpuLogging = false;
@@ -398,6 +401,7 @@ void updaterTask(void *pvParameters)
     json::JSONBuilder builder;
     builder.add(mpuCnt).to(builder.baseObject(), "newestVal");
     builder.add(1e-2).to(builder.baseObject(), "timeDelta");
+
     auto accel = builder.add(json::Object{}).to(builder.baseObject(), "accel").get<json::Object>();
     auto accelX = builder.add(json::Array{}).to(*accel, "X").get<json::Array>();
     auto accelY = builder.add(json::Array{}).to(*accel, "Y").get<json::Array>();
