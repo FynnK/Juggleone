@@ -36,12 +36,13 @@ struct Orientation : Vector3<> {
 };
 
 struct MPU6050Data {
+    uint32_t timestamp;
     Acceleration accel;
     Orientation orient;
     MPU6050Data() = default;
-    MPU6050Data(const Acceleration &acc, const Orientation &ori) : accel{acc}, orient{ori} {}
+    MPU6050Data(const uint32_t time ,const Acceleration &acc, const Orientation &ori) : accel{acc}, orient{ori} {timestamp = time;}
     MPU6050Data(const MPU6050& mpu) :
-        MPU6050Data{{mpu.GetAccX(), mpu.GetAccY(), mpu.GetAccZ()}, {mpu.GetAngX(), mpu.GetAngX(), mpu.GetAngX()}} {}
+        MPU6050Data{xTaskGetTickCount(), {mpu.GetAccX(), mpu.GetAccY(), mpu.GetAccZ()}, {mpu.GetAngX(), mpu.GetAngX(), mpu.GetAngX()}} {}
 };
 
 template<typename Type, std::ptrdiff_t Size = 100>

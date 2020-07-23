@@ -21,6 +21,7 @@ constexpr auto MPU_INT_PIN = 19;
 constexpr auto MPU6050_INT_PIN_CFG = 0x37;
 constexpr auto MPU6050_INT_ENABLE = 0x38;
 constexpr auto MPU_ARRAY_SIZE = 50;
+constexpr auto MAX_LIGHTING_MODE = 3;
 
 constexpr auto ssid = "EspBall";
 constexpr auto stat_ssid = "retaeper";
@@ -37,7 +38,7 @@ bool isUpdating = false;
 bool logging = false;
 bool log10k = false;
 
-int lightingMode = 0;
+int lightingMode = 3;
 
 int buttonState = HIGH;
 bool buttonHandled = true;
@@ -52,6 +53,7 @@ uint32_t lastDownTime;
 uint32_t lastUpTime;
 int lastDT = 0;
 bool logAccHandle = true;
+uint32_t ledArr[8] = {};
 
 RotatingBuffer<MPU6050Data, MPU_ARRAY_SIZE> mpuData{};
 float accTot;
@@ -65,6 +67,17 @@ Adafruit_NeoPixel leds(LED_CNT, LED_PIN, NEO_GRBW + NEO_KHZ800);
 MPU6050 mpu(Wire);
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+
+
+struct pixel {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t w;
+};
+
+pixel pixels[8] = {};
+
 
 void IRAM_ATTR buttonChanged()
 {
@@ -155,7 +168,7 @@ void lightingTask(void *pvParameters)
     {
       for (int i = 0; i < 8; i++)
       {
-        leds.setPixelColor(i, leds.ColorHSV(hue, 255, 255));
+        leds.setPixelColor(i, leds.Color(pixels[i].r, pixels[i].g, pixels[i].b, pixels[i].w));
       }
     }
 
@@ -202,10 +215,14 @@ void mpuTask(void *pvParameters)
   }
 }
 
+void setLightingMode(uint8_t inMode){
+  lightingMode = inMode%(MAX_LIGHTING_MODE+1);
+}
+
+void setBrightness(uint8_t inBrightness){
+  brightness = inBrightness%256;
+}
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
-
-  
-
   if(type == WS_EVT_CONNECT){
 
     logln("Websocket client connection received");
@@ -214,14 +231,22 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     logln("Client disconnected");
 
   } else if(type == WS_EVT_DATA){
-    String str;
-    for(int i=0; i < len; i++) {
-      str.concat((char)data[i]);
-    }
-    client->text(str);
-    logln(str);
+
+    StaticJsonDocument<1200> doc;
+      DeserializationError error = deserializeJson(doc, data);
+      setBrightness(doc["brightness"]);
+      setLightingMode(doc["mode"]);
+      for(int i = 0; i < 8; i++){
+        pixels[i].r = doc["pixels"][i][0];
+        pixels[i].g = doc["pixels"][i][1];
+        pixels[i].b = doc["pixels"][i][2];
+        pixels[i].w = doc["pixels"][i][3];
+      }
+    client->text(error.c_str());
   }
 }
+
+
 
 void updaterTask(void *pvParameters)
 {
@@ -242,6 +267,7 @@ void updaterTask(void *pvParameters)
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->redirect("/update");
   });
+
 
   server.on("/format", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "formatting SPIFFS");
@@ -577,7 +603,7 @@ void handleLongPress()
 
 void handleShortPress()
 {
-  lightingMode = (lightingMode + 1) % 4;
+  setLightingMode(lightingMode+1);
 }
 
 void loop()
